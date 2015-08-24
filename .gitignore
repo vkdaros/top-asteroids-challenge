@@ -6,3 +6,6 @@
 
 # Ignore log files.
 Logs/*.txt
+
+# Ignore vim session files.
+*session.vim
