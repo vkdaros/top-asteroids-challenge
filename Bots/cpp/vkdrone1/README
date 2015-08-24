@@ -1,0 +1,11 @@
+===============
+Create Makefile
+===============
+    cd build/
+    cmake ..
+
+=======
+Compile
+=======
+    make
+
