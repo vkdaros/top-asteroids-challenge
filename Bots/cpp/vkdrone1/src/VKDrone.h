@@ -1,12 +1,18 @@
 #ifndef VKDrone_H
 #define VKDrone_H
 
-#define PI (3.14159265f)
-
 #include <map>
 
 #include "BotBase.h"
 #include "bot_interface.h"
+#include "PID.h"
+
+#define PI (3.14159265)
+
+// Rotation PID gain constants.
+#define KP_ROT (0.45)
+#define KI_ROT (0.0)
+#define KD_ROT (0.25)
 
 class VKDrone : public BotBase {
   public:
@@ -20,7 +26,10 @@ class VKDrone : public BotBase {
 
     // Rotates the ship to face a object or a specific coordinate.
     void aimAt(const GameObject *obj);
-    void aimAt(float x, float y);
+    void aimAt(double x, double y);
+
+  private:
+    PID rotationPID;
 };
 
 #endif

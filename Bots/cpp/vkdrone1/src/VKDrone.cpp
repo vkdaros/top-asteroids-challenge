@@ -11,7 +11,7 @@ using std::sin;
 using std::cos;
 using std::acos;
 
-VKDrone::VKDrone() {
+VKDrone::VKDrone() : rotationPID(KP_ROT, KI_ROT, KD_ROT, -1.0, 1.0, 0.05) {
 }
 
 VKDrone::~VKDrone() {
@@ -26,21 +26,31 @@ void VKDrone::Process() {
     /*
     gameState->Log("x: "  + to_string(target->posx) +
                    " y: " + to_string(target->posy));
+    gameState->Log("tic: "  + to_string(gameState->tick) +
+                   "; d: " + to_string(gameState->timeStep));
+    gameState->Log("ang: "  + to_string(target->ang) +
+                   "; va: " + to_string(target->velAng));
     */
 
     // Rotate to face the target.
     aimAt(target);
-    thrust = 0.01f;
+    thrust = 0.1;
 
-    /*
-    gameState->Log("ang: "  + to_string(target->ang) +
-                   "; va: " + to_string(target->velAng));
-    */
+    if (myShip->charge >= 3 && fabs(myShip->velAng) < 5) {
+        shoot = 3;
+    } else {
+        shoot = 0;
+    }
+
+    // velAngMaxThrust = 534.38
+    // velAngMaxFree   = 500.00
+    // timeStep        = 0.0500 (seconds)
+    // acelAngMax      = +-2062.65
 }
 
 Ship* VKDrone::closestShip(map<int, Ship*> &ships) {
     // Squared distance to closest enemy ship.
-    float shortestDist2 = -1;
+    double shortestDist2 = -1;
 
     // ID of closest enemy ship.
     // Initial value just to check later if any enemy was found.
@@ -57,7 +67,7 @@ Ship* VKDrone::closestShip(map<int, Ship*> &ships) {
         }
 
         // Squared distance to enemy ship.
-        float dist2 = pow(ship->posx - myShip->posx, 2) +
+        double dist2 = pow(ship->posx - myShip->posx, 2) +
                       pow(ship->posy - myShip->posy, 2);
 
         // Update closest enemy information.
@@ -78,9 +88,9 @@ void VKDrone::aimAt(const GameObject *obj) {
     return aimAt(obj->posx, obj->posy);
 }
 
-void VKDrone::aimAt(float x, float y) {
+void VKDrone::aimAt(double x, double y) {
     // Angle from NORTH to "ang" attribute restricted to [-2PI, 2PI].
-    float facingAngle = fmod(myShip->ang, 360) * (PI / 180.0f);
+    double facingAngle = fmod(myShip->ang, 360) * (PI / 180.0);
 
     // Ajust facingAngle to [-PI, PI]. West -> negative, East -> positive.
     if (facingAngle > PI) {
@@ -90,28 +100,25 @@ void VKDrone::aimAt(float x, float y) {
     }
 
     // Unitary vector of facing direction from NORTH.
-    float facingX = -1 * sin(facingAngle);
-    float facingY = cos(facingAngle);
+    double facingX = -1 * sin(facingAngle);
+    double facingY = cos(facingAngle);
 
     // Vector to target with respect to myShip.
-    float targetX = x - myShip->posx;
-    float targetY = y - myShip->posy;
+    double targetX = x - myShip->posx;
+    double targetY = y - myShip->posy;
 
-    // Find the angle alpha between the vectors using "dot (or inner) product".
-    // Note: alpha is in [0,PI] because of acos.
-    float alpha = acos((facingX * targetX + facingY * targetY) /
-                       (
-                           sqrt(facingX * facingX + facingY * facingY) *
-                           sqrt(targetX * targetX + targetY * targetY)
-                       ));
+    // Find the angle [0,PI] between the vectors using "dot (or inner) product".
+    double dotProduct = facingX * targetX + facingY * targetY;
+    double norm = sqrt(facingX * facingX + facingY * facingY) *
+                  sqrt(targetX * targetX + targetY * targetY);
+    double result = max(min(dotProduct / norm, 1.0), -1.0);
+    double angleToTarget = acos(result);
 
-    // Cross product sign tells if target is at right (negative alpha).
+    // Cross product sign tells if target is at right (negative angleToTarget).
     if (facingX * targetY - facingY * targetX < 0) {
-        alpha *= -1.0f;
+        angleToTarget *= -1.0;
     }
 
-    gameState->Log("facing: " + to_string(facingAngle) + " rad: " + to_string(alpha));
-
-    sideThrustFront = alpha * -0.1f;
+    sideThrustFront = rotationPID.compute(0.0, angleToTarget);
     sideThrustBack = -sideThrustFront;
 }

@@ -7,12 +7,14 @@ project(${PROJECT_NAME} C CXX)
 set(VKD_SRC
     ${CMAKE_SOURCE_DIR}/src/main.cpp
     ${CMAKE_SOURCE_DIR}/src/VKDrone.cpp
+    ${CMAKE_SOURCE_DIR}/src/PID.cpp
     ${CMAKE_SOURCE_DIR}/src/BotBase.cpp
     ${CMAKE_SOURCE_DIR}/src/bot_interface.cpp
 )
 
 set(VKD_HEADERS
     ${CMAKE_SOURCE_DIR}/src/VKDrone.h
+    ${CMAKE_SOURCE_DIR}/src/PID.h
     ${CMAKE_SOURCE_DIR}/src/BotBase.h
     ${CMAKE_SOURCE_DIR}/src/bot_interface.h
 )
