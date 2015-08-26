@@ -78,7 +78,7 @@ class GameState
 	float thrust;
 	float sideThrustFront;
 	float sideThrustBack;
-	bool shoot;
+	int shoot;
 
 	void ReadData();
 	void ParseData(string toParse);
