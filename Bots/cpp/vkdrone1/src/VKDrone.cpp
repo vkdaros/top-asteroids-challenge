@@ -18,7 +18,7 @@ VKDrone::~VKDrone() {
 }
 
 void VKDrone::Process() {
-    Ship *target = closestShip(gameState->ships);
+    GameObject *target = closestObject<Ship>(gameState->ships);
     if (target == NULL) {
         // Do nothing when there is no enemies left.
         return;
@@ -35,53 +35,12 @@ void VKDrone::Process() {
     // Rotate to face the target.
     aimAt(target);
     thrust = 0.1;
-
-    if (myShip->charge >= 3 && fabs(myShip->velAng) < 5) {
-        shoot = 3;
-    } else {
-        shoot = 0;
-    }
+    shoot = 1;
 
     // velAngMaxThrust = 534.38
     // velAngMaxFree   = 500.00
     // timeStep        = 0.0500 (seconds)
     // acelAngMax      = +-2062.65
-}
-
-Ship* VKDrone::closestShip(map<int, Ship*> &ships) {
-    // Squared distance to closest enemy ship.
-    double shortestDist2 = -1;
-
-    // ID of closest enemy ship.
-    // Initial value just to check later if any enemy was found.
-    int uid = myShip->uid;
-
-	for(map<int, Ship*>::iterator itr = ships.begin();
-        itr != ships.end(); itr++) {
-
-        Ship *ship = itr->second;
-
-        // Ignore myShip.
-        if (ship->uid == myShip->uid) {
-            continue;
-        }
-
-        // Squared distance to enemy ship.
-        double dist2 = pow(ship->posx - myShip->posx, 2) +
-                      pow(ship->posy - myShip->posy, 2);
-
-        // Update closest enemy information.
-        if (dist2 < shortestDist2 || shortestDist2 <= 0) {
-            shortestDist2 = dist2;
-            uid = ship->uid;
-        }
-    }
-
-    if (uid == myShip->uid) {
-        // No enemy found.
-        return NULL;
-    }
-    return gameState->ships[uid];
 }
 
 void VKDrone::aimAt(const GameObject *obj) {
