@@ -40,6 +40,10 @@ class VKDrone : public BotBase {
 
   private:
     PID rotationPID;
+
+    // Indicates the power of next shoot. If charge == -1, then a new power
+    // value is going to be given by rand().
+    int charge;
 };
 
 // Template definition.

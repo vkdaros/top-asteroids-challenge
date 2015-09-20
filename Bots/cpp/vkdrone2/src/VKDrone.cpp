@@ -1,9 +1,14 @@
 #include <cmath>
+#include <ctime>
+#include <cstdlib>
 #include <string>
 
 #include "VKDrone.h"
 
 using std::map;
+using std::time;
+using std::rand;
+using std::srand;
 
 using std::pow;
 using std::sqrt;
@@ -12,6 +17,9 @@ using std::cos;
 using std::acos;
 
 VKDrone::VKDrone() : rotationPID(KP_ROT, KI_ROT, KD_ROT, -1.0, 1.0, 0.05) {
+    // Use current time as seed for rand.
+    srand(time(0));
+    charge = 1;
 }
 
 VKDrone::~VKDrone() {
@@ -24,22 +32,20 @@ void VKDrone::Process() {
         // TODO: it should avoid to die in order to not lose a score point.
         return;
     }
-    /*
-    gameState->Log("x: "  + to_string(target->posx) +
-                   " y: " + to_string(target->posy));
-    gameState->Log("tic: "  + to_string(gameState->tick) +
-                   "; d: " + to_string(gameState->timeStep));
-    gameState->Log("ang: "  + to_string(target->ang) +
-                   "; va: " + to_string(target->velAng));
-    */
 
-    int charge = 2;
-    double laserSpeed = charge * LASER_BASE_SPEED;
+    if (charge == -1) {
+        // Get pseudo-random shot power;
+        charge = 1 + static_cast<int>(rand() % 2);
+        gameState->Log("charge: " + to_string(charge));
+    }
 
     // Rotate to face the target.
+    double laserSpeed = charge * LASER_BASE_SPEED;
     aimAt(futurePosition(target, laserSpeed));
+
     if (myShip->charge >= charge) {
         shoot = charge;
+        charge = -1;
     } else {
         shoot = 0;
     }
