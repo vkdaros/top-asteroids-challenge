@@ -15,6 +15,7 @@ set(VKD_SRC
 set(VKD_HEADERS
     ${CMAKE_SOURCE_DIR}/src/VKDrone.h
     ${CMAKE_SOURCE_DIR}/src/PID.h
+    ${CMAKE_SOURCE_DIR}/src/Point2D.h
     ${CMAKE_SOURCE_DIR}/src/BotBase.h
     ${CMAKE_SOURCE_DIR}/src/bot_interface.h
 )

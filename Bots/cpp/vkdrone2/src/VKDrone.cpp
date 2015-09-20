@@ -21,6 +21,7 @@ void VKDrone::Process() {
     GameObject *target = closestObject<Ship>(gameState->ships);
     if (target == NULL) {
         // Do nothing when there is no enemies left.
+        // TODO: it should avoid to die in order to not lose a score point.
         return;
     }
     /*
@@ -32,19 +33,35 @@ void VKDrone::Process() {
                    "; va: " + to_string(target->velAng));
     */
 
+    int charge = 2;
+    double laserSpeed = charge * LASER_BASE_SPEED;
+
     // Rotate to face the target.
-    aimAt(target);
-    thrust = 0.1;
-    shoot = 1;
+    aimAt(futurePosition(target, laserSpeed));
+    if (myShip->charge >= charge) {
+        shoot = charge;
+    } else {
+        shoot = 0;
+    }
+
+    //thrust = 0.1;
 
     // velAngMaxThrust = 534.38
     // velAngMaxFree   = 500.00
     // timeStep        = 0.0500 (seconds)
     // acelAngMax      = +-2062.65
+    // laserSpeed1     = 25 (m/s)
+    // laserSpeed2     = 50 (m/s)
+    // laserSpeed3     = 75 (m/s)
+    // chargeTime      = 0.5 (s per slot)
 }
 
 void VKDrone::aimAt(const GameObject *obj) {
     return aimAt(obj->posx, obj->posy);
+}
+
+void VKDrone::aimAt(Point2D point) {
+    return aimAt(point.x, point.y);
 }
 
 void VKDrone::aimAt(double x, double y) {
@@ -80,4 +97,19 @@ void VKDrone::aimAt(double x, double y) {
 
     sideThrustFront = rotationPID.compute(0.0, angleToTarget);
     sideThrustBack = -sideThrustFront;
+}
+
+Point2D VKDrone::futurePosition(const GameObject *obj, double laserSpeed) {
+    // Distance to obj.
+    double dist = sqrt(pow(obj->posx - myShip->posx, 2) +
+                       pow(obj->posy - myShip->posy, 2));
+
+    // Time needed to a laser beam travel all dist.
+    double dt = dist / laserSpeed;
+
+    Point2D nextPos;
+    nextPos.x = obj->posx + obj->velx * dt;
+    nextPos.y = obj->posy + obj->vely * dt;
+
+    return nextPos;
 }

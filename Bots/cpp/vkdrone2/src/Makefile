@@ -13,7 +13,7 @@ all: $(OBJ)
 main.o: main.cpp VKDrone.h bot_interface.h
 	$(CXX) $(CPPFLAG) -c $<
 
-VKDrone.o: VKDrone.cpp VKDrone.h BotBase.h PID.h
+VKDrone.o: VKDrone.cpp VKDrone.h BotBase.h PID.h Point2D.h
 	$(CXX) $(CPPFLAG) -c $<
 
 PID.o: PID.cpp PID.h

@@ -6,8 +6,11 @@
 #include "BotBase.h"
 #include "bot_interface.h"
 #include "PID.h"
+#include "Point2D.h"
 
 #define PI (3.14159265)
+
+#define LASER_BASE_SPEED (25.0)
 
 // Rotation PID gain constants.
 #define KP_ROT (0.45)
@@ -30,6 +33,10 @@ class VKDrone : public BotBase {
     // Rotates the ship to face a object or a specific coordinate.
     void aimAt(const GameObject *obj);
     void aimAt(double x, double y);
+    void aimAt(Point2D point);
+
+    // Returns expected position of the object at next time step.
+    Point2D futurePosition(const GameObject *obj, double charge);
 
   private:
     PID rotationPID;
