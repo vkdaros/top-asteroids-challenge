@@ -26,6 +26,9 @@ VKDrone::~VKDrone() {
 }
 
 void VKDrone::Process() {
+    // Fill threats list with rocks and lasers near the ship.
+    updateNearThreats(NEAR_DIST);
+
     GameObject *target = closestObject<Ship>(gameState->ships);
     if (target == NULL) {
         // Do nothing when there is no enemies left.
@@ -49,7 +52,7 @@ void VKDrone::Process() {
 
     // Shoot only when is aiming at right direction (angle < 1 degree).
     if (myShip->charge >= charge && angleToTarget <= 0.01745) {
-        shoot = charge;
+        //shoot = charge;
         charge = -1;
     } else {
         shoot = 0;
@@ -120,9 +123,50 @@ Point2D VKDrone::futurePosition(const GameObject *obj, double laserSpeed) {
     // Time needed to a laser beam travel all dist.
     double dt = dist / laserSpeed;
 
-    Point2D nextPos;
-    nextPos.x = obj->posx + obj->velx * dt;
-    nextPos.y = obj->posy + obj->vely * dt;
-
+    Point2D nextPos = {
+        obj->posx + obj->velx * dt,
+        obj->posy + obj->vely * dt
+    };
     return nextPos;
+}
+
+void VKDrone::updateNearThreats(double nearDist) {
+    // Bound box of near objects.
+    Point2D upperLeft   = {myShip->posx - nearDist, myShip->posy - nearDist};
+    Point2D bottomRight = {myShip->posx + nearDist, myShip->posy + nearDist};
+
+    nearThreats.clear();
+
+    // Lasers.
+	for (map<int, Laser*>::iterator itr = gameState->lasers.begin();
+         itr != gameState->lasers.end(); itr++) {
+
+        Laser *obj = itr->second;
+        if (isInsideBox(obj, upperLeft, bottomRight)) {
+            nearThreats.push_back(obj);
+        }
+    }
+
+    // Rocks.
+	for (map<int, Rock*>::iterator itr = gameState->rocks.begin();
+         itr != gameState->rocks.end(); itr++) {
+
+        Rock *obj = itr->second;
+        if (isInsideBox(obj, upperLeft, bottomRight)) {
+            nearThreats.push_back(obj);
+        }
+    }
+
+    gameState->Log("box size: " + to_string(nearThreats.size()));
+}
+
+
+/*******************************************************************************
+ * "Hidden" auxiliary functions.
+ * It shuld be refactored.
+ ******************************************************************************/
+
+bool isInsideBox(GameObject *obj, Point2D upperLeft, Point2D bottomRight) {
+    return obj->posx >= upperLeft.x && obj->posx <= bottomRight.x &&
+           obj->posy >= upperLeft.y && obj->posy <= bottomRight.y;
 }

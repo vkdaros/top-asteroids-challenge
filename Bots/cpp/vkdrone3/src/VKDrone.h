@@ -2,6 +2,7 @@
 #define VKDrone_H
 
 #include <map>
+#include <vector>
 
 #include "BotBase.h"
 #include "bot_interface.h"
@@ -11,6 +12,7 @@
 #define PI (3.14159265)
 
 #define LASER_BASE_SPEED (25.0)
+#define NEAR_DIST (25)
 
 // Rotation PID gain constants.
 #define KP_ROT (0.4)
@@ -18,6 +20,7 @@
 #define KD_ROT (0.25)
 
 using std::map;
+using std::vector;
 
 class VKDrone : public BotBase {
   public:
@@ -45,6 +48,13 @@ class VKDrone : public BotBase {
     // Indicates the power of next shoot. If charge == -1, then a new power
     // value is going to be given by rand().
     int charge;
+
+    // List of rocks ans lasers near the ship.
+    vector<GameObject*> nearThreats;
+
+    // Fill threats list with rocks and lasers inside a bound box centered in
+    // the ship and with (2 * nearDist) side length.
+    void updateNearThreats(double nearDist);
 };
 
 // Template definition.
@@ -85,5 +95,13 @@ T* VKDrone::closestObject(map<int, T*> &objects) {
     }
     return objects[uid];
 }
+
+
+/*******************************************************************************
+ * "Hidden" auxiliary functions.
+ * It shuld be refactored.
+ ******************************************************************************/
+
+bool isInsideBox(GameObject *obj, Point2D upperLeft, Point2D bottomRight);
 
 #endif
