@@ -13,7 +13,7 @@
 #define LASER_BASE_SPEED (25.0)
 
 // Rotation PID gain constants.
-#define KP_ROT (0.45)
+#define KP_ROT (0.4)
 #define KI_ROT (0.0)
 #define KD_ROT (0.25)
 
@@ -31,9 +31,10 @@ class VKDrone : public BotBase {
     GameObject* closestObject(std::map<int, GameObject*> &objects);
 
     // Rotates the ship to face a object or a specific coordinate.
-    void aimAt(const GameObject *obj);
-    void aimAt(double x, double y);
-    void aimAt(Point2D point);
+    // Returns angle [0, PI] between myShip direction and obj position.
+    double aimAt(const GameObject *obj);
+    double aimAt(double x, double y);
+    double aimAt(Point2D point);
 
     // Returns expected position of the object at next time step.
     Point2D futurePosition(const GameObject *obj, double charge);

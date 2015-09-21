@@ -36,14 +36,19 @@ void VKDrone::Process() {
     if (charge == -1) {
         // Get pseudo-random shot power;
         charge = 1 + static_cast<int>(rand() % 2);
-        gameState->Log("charge: " + to_string(charge));
+    }
+
+    // If has charged a faster shot already, use it.
+    if (myShip->charge >= charge) {
+        charge = static_cast<int>(myShip->charge);
     }
 
     // Rotate to face the target.
     double laserSpeed = charge * LASER_BASE_SPEED;
-    aimAt(futurePosition(target, laserSpeed));
+    double angleToTarget = aimAt(futurePosition(target, laserSpeed));
 
-    if (myShip->charge >= charge) {
+    // Shoot only when is aiming at right direction (angle < 1 degree).
+    if (myShip->charge >= charge && angleToTarget <= 0.01745) {
         shoot = charge;
         charge = -1;
     } else {
@@ -62,15 +67,15 @@ void VKDrone::Process() {
     // chargeTime      = 0.5 (s per slot)
 }
 
-void VKDrone::aimAt(const GameObject *obj) {
+double VKDrone::aimAt(const GameObject *obj) {
     return aimAt(obj->posx, obj->posy);
 }
 
-void VKDrone::aimAt(Point2D point) {
+double VKDrone::aimAt(Point2D point) {
     return aimAt(point.x, point.y);
 }
 
-void VKDrone::aimAt(double x, double y) {
+double VKDrone::aimAt(double x, double y) {
     // Angle from NORTH to "ang" attribute restricted to [-2PI, 2PI].
     double facingAngle = fmod(myShip->ang, 360) * (PI / 180.0);
 
@@ -103,6 +108,8 @@ void VKDrone::aimAt(double x, double y) {
 
     sideThrustFront = rotationPID.compute(0.0, angleToTarget);
     sideThrustBack = -sideThrustFront;
+
+    return angleToTarget;
 }
 
 Point2D VKDrone::futurePosition(const GameObject *obj, double laserSpeed) {
