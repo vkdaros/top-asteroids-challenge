@@ -35,16 +35,16 @@ void VKDrone::Process() {
 
     updateNextCharge();
 
+    double angleToTarget;
     GameObject *target = closestObject<Ship>(gameState->ships);
-    if (target == NULL) {
-        // Do nothing when there is no enemies left.
-        // TODO: it should avoid to die in order to not lose a score point.
-        return;
+    if (target != NULL) {
+        double laserSpeed = nextCharge * LASER_BASE_SPEED;
+        angleToTarget = angleTo(futurePosition(target, laserSpeed));
+    } else {
+        angleToTarget = angleTo(0.0, 0.0);
     }
 
     // Rotate to face the target.
-    double laserSpeed = nextCharge * LASER_BASE_SPEED;
-    double angleToTarget = angleTo(futurePosition(target, laserSpeed));
     Point2D p = {15, 0};
     goTo(p, angleToTarget);
 
