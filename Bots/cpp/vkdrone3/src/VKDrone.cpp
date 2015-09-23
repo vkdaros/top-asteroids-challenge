@@ -22,12 +22,19 @@ VKDrone::VKDrone() : rotationPID(KP_ROT, KI_ROT, KD_ROT, -1.0, 1.0, 0.05),
     // Use current time as seed for rand.
     srand(time(0));
     nextCharge = 1;
+    firstRun = true;
+    evading = false;
 }
 
 VKDrone::~VKDrone() {
 }
 
 void VKDrone::Process() {
+    if (firstRun) {
+        firstRun = false;
+        destiny.x = myShip->posx;
+        destiny.y = myShip->posy;
+    }
     updateFacingAngle();
 
     // Fill threats list with rocks and lasers near the ship.
@@ -44,9 +51,8 @@ void VKDrone::Process() {
         angleToTarget = angleTo(0.0, 0.0);
     }
 
-    // Rotate to face the target.
-    Point2D p = {15, 0};
-    goTo(p, angleToTarget);
+    destiny = evadePosition();
+    goTo(destiny, angleToTarget);
 
     // If all enemies has died, keep shooting.
     shoot = 0;
@@ -56,18 +62,9 @@ void VKDrone::Process() {
     } else if (myShip->charge >= nextCharge && angleToTarget <= 0.01745) {
         // Shoot only when aiming at right direction (angle < 1 degree) and with
         // correct laser power charged.
-        //shoot = nextCharge;
+        shoot = nextCharge;
         nextCharge = -1;
     }
-
-    // velAngMaxThrust = 534.38
-    // velAngMaxFree   = 500.00
-    // timeStep        = 0.0500 (seconds)
-    // acelAngMax      = +-2062.65
-    // laserSpeed1     = 25 (m/s)
-    // laserSpeed2     = 50 (m/s)
-    // laserSpeed3     = 75 (m/s)
-    // chargeTime      = 0.5 (s per slot)
 }
 
 double VKDrone::angleTo(const GameObject *obj) {
@@ -157,14 +154,12 @@ void VKDrone::updateNearThreats(double nearDist) {
             nearThreats.push_back(obj);
         }
     }
-
-    gameState->Log("box size: " + to_string(nearThreats.size()));
 }
 
 void VKDrone::updateNextCharge() {
     if (nextCharge == -1) {
         // Get pseudo-random shot power;
-        nextCharge = 1 + static_cast<int>(rand() % 2);
+        nextCharge = 1 + static_cast<int>(rand() % 3);
     }
 
     // If has charged a faster shot already, use it.
@@ -177,10 +172,14 @@ void VKDrone::goTo(Point2D destiny, double angle) {
     double deltaX = destiny.x - myShip->posx;
     double deltaY = destiny.y - myShip->posy;
     double distToDestiny = sqrt(pow(deltaX, 2) + pow(deltaY, 2));
-    double pidDist = movementPID.compute(0.0, -distToDestiny);
 
-    double Fx = pidDist * (deltaX / distToDestiny);
-    double Fy = pidDist * (deltaY / distToDestiny);
+    double Fx = 0.0;
+    double Fy = 0.0;
+    if (fabs(distToDestiny) > ZERO) {
+        double pidDist = movementPID.compute(0.0, -distToDestiny);
+        Fx = pidDist * (deltaX / distToDestiny);
+        Fy = pidDist * (deltaY / distToDestiny);
+    }
     double Fr = angle;
 
     double sinA = sin(facingAngle);
@@ -217,11 +216,62 @@ void VKDrone::goTo(Point2D destiny, double angle) {
     sideThrustBack = b;
 }
 
-/*
 Point2D VKDrone::evadePosition() {
+    vector<Point2D> threatsDirections;
+    double dt = gameState->timeStep;
 
+    Point2D myNextPos = {
+        myShip->posx + myShip->velx * dt,
+        myShip->posy + myShip->vely * dt
+    };
+
+    for (unsigned int i = 0; i < nearThreats.size(); i++) {
+        GameObject *obj = nearThreats[i];
+
+        Point2D objPos = {obj->posx, obj->posy};
+        Point2D objNextPos = {
+            objPos.x + obj->velx * dt,
+            objPos.y + obj->vely * dt
+        };
+
+        double dist = distPointToLine(myNextPos, objPos, objNextPos, gameState);
+        double minDist = myShip->radius + obj->radius;
+        if (fabs(dist) <= ZERO) {
+            Point2D v = {
+                objNextPos.y - myNextPos.y,
+                objNextPos.x - myNextPos.x
+            };
+            v.x += myNextPos.x;
+            v.y += myNextPos.y;
+            threatsDirections.push_back(v);
+        } else if (dist <= minDist) {
+            double u = collisionDistance(myNextPos, objPos, objNextPos);
+            Point2D collisionPoint = {
+                objPos.x + u * (objNextPos.x - objPos.x),
+                objPos.y + u * (objNextPos.y - objPos.y)
+            };
+            threatsDirections.push_back(collisionPoint);
+        }
+    }
+
+    if (threatsDirections.size() == 0) {
+        if (evading) {
+            destiny.x = myShip->posx;
+            destiny.y = myShip->posy;
+        }
+        evading = false;
+    } else {
+        evading = true;
+    }
+
+    Point2D safeDirection = {destiny.x, destiny.y};
+    for (unsigned int i = 0; i < threatsDirections.size(); i++) {
+        safeDirection.x += myNextPos.x - threatsDirections[i].x;
+        safeDirection.y += myNextPos.y - threatsDirections[i].y;
+    }
+
+    return safeDirection;
 }
-*/
 
 
 /*******************************************************************************
@@ -232,4 +282,22 @@ Point2D VKDrone::evadePosition() {
 bool isInsideBox(GameObject *obj, Point2D upperLeft, Point2D bottomRight) {
     return obj->posx >= upperLeft.x && obj->posx <= bottomRight.x &&
            obj->posy >= upperLeft.y && obj->posy <= bottomRight.y;
+}
+
+double distPointToLine(Point2D p, Point2D from, Point2D to, GameState *g) {
+    double numerator = fabs((to.x - from.x)*(from.y - p.y) -
+                            (from.x - p.x)*(to.y - from.y));
+
+    double denominator = sqrt(pow(to.x - from.x, 2) + pow(to.y - from.y, 2));
+
+    return numerator / denominator;
+}
+
+double collisionDistance(Point2D p, Point2D from, Point2D to) {
+    double numerator = (p.x - from.x)*(to.x - from.x) +
+                       (p.y - from.y)*(to.y - from.y);
+
+    double denominator = pow(to.x - from.x, 2) + pow(to.y - from.y, 2);
+
+    return numerator / denominator;
 }

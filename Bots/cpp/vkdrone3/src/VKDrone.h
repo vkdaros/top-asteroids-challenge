@@ -10,10 +10,10 @@
 #include "Point2D.h"
 
 #define PI (3.14159265)
-#define ZERO (0.001)
+#define ZERO (0.0001)
 
 #define LASER_BASE_SPEED (25.0)
-#define NEAR_DIST (25)
+#define NEAR_DIST (30)
 
 #define MAIN_THRUST_POWER  (30) // Newtons
 #define SIDE_THRUST_POWER  (15)
@@ -44,6 +44,10 @@ class VKDrone : public BotBase {
     // North = 0; West = PI/2; South = +/-PI; East = -PI/2.
     double facingAngle;
 
+    // Indicates the power of next shoot. If charge == -1, then a new power
+    // value is going to be given by rand().
+    int nextCharge;
+
 
     // Return uid of closest object or NULL when no one was found.
     template <typename T> T* closestObject(map<int, T*> &objects);
@@ -55,21 +59,9 @@ class VKDrone : public BotBase {
     double angleTo(double x, double y);
     double angleTo(Point2D point);
 
-    // Returns expected position of the object at next time step.
+    // Returns expected position of the object at the time a laser beam with
+    // power 'charge' would hit it.
     Point2D futurePosition(const GameObject *obj, double charge);
-
-
-  private:
-    PID rotationPID;
-    PID movementPID;
-
-    // Indicates the power of next shoot. If charge == -1, then a new power
-    // value is going to be given by rand().
-    int nextCharge;
-
-    // List of rocks ans lasers near the ship.
-    vector<GameObject*> nearThreats;
-
 
     void updateFacingAngle();
 
@@ -80,7 +72,24 @@ class VKDrone : public BotBase {
     // Choose the laser power of next shot.
     void updateNextCharge();
 
+    // Set thrust in order to reach 'destiny' facing 'angle'.
     void goTo(Point2D destiny, double angle);
+
+    // Checks if any of near threats is in collision route with the ship and
+    // returns a safe location.
+    Point2D evadePosition();
+
+
+  private:
+    PID rotationPID;
+    PID movementPID;
+
+    // List of rocks ans lasers near the ship.
+    vector<GameObject*> nearThreats;
+
+    bool firstRun;
+    bool evading;
+    Point2D destiny;
 };
 
 // Template definition.
@@ -129,5 +138,7 @@ T* VKDrone::closestObject(map<int, T*> &objects) {
  ******************************************************************************/
 
 bool isInsideBox(GameObject *obj, Point2D upperLeft, Point2D bottomRight);
+double distPointToLine(Point2D p, Point2D from, Point2D to, GameState *g);
+double collisionDistance(Point2D p, Point2D from, Point2D to);
 
 #endif
