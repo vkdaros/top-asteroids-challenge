@@ -16,7 +16,9 @@ using std::sin;
 using std::cos;
 using std::acos;
 
-VKDrone::VKDrone() : rotationPID(KP_ROT, KI_ROT, KD_ROT, -1.0, 1.0, 0.05) {
+VKDrone::VKDrone() : rotationPID(KP_ROT, KI_ROT, KD_ROT, -1.0, 1.0, 0.05),
+                     movementPID(KP_MOVE, KI_MOVE, KD_MOVE, 0.0,
+                                 MAIN_THRUST_POWER, 0.05){
     // Use current time as seed for rand.
     srand(time(0));
     charge = 1;
@@ -26,6 +28,8 @@ VKDrone::~VKDrone() {
 }
 
 void VKDrone::Process() {
+    updateFacingAngle();
+
     // Fill threats list with rocks and lasers near the ship.
     updateNearThreats(NEAR_DIST);
 
@@ -48,7 +52,9 @@ void VKDrone::Process() {
 
     // Rotate to face the target.
     double laserSpeed = charge * LASER_BASE_SPEED;
-    double angleToTarget = aimAt(futurePosition(target, laserSpeed));
+    double angleToTarget = angleTo(futurePosition(target, laserSpeed));
+    Point2D p = {15, 0};
+    goTo(p, angleToTarget);
 
     // Shoot only when is aiming at right direction (angle < 1 degree).
     if (myShip->charge >= charge && angleToTarget <= 0.01745) {
@@ -57,8 +63,6 @@ void VKDrone::Process() {
     } else {
         shoot = 0;
     }
-
-    //thrust = 0.1;
 
     // velAngMaxThrust = 534.38
     // velAngMaxFree   = 500.00
@@ -70,24 +74,15 @@ void VKDrone::Process() {
     // chargeTime      = 0.5 (s per slot)
 }
 
-double VKDrone::aimAt(const GameObject *obj) {
-    return aimAt(obj->posx, obj->posy);
+double VKDrone::angleTo(const GameObject *obj) {
+    return angleTo(obj->posx, obj->posy);
 }
 
-double VKDrone::aimAt(Point2D point) {
-    return aimAt(point.x, point.y);
+double VKDrone::angleTo(Point2D point) {
+    return angleTo(point.x, point.y);
 }
 
-double VKDrone::aimAt(double x, double y) {
-    // Angle from NORTH to "ang" attribute restricted to [-2PI, 2PI].
-    double facingAngle = fmod(myShip->ang, 360) * (PI / 180.0);
-
-    // Ajust facingAngle to [-PI, PI]. West -> negative, East -> positive.
-    if (facingAngle > PI) {
-        facingAngle -= 2 * PI;
-    } else if (facingAngle < -PI) {
-        facingAngle += 2 * PI;
-    }
+double VKDrone::angleTo(double x, double y) {
 
     // Unitary vector of facing direction from NORTH.
     double facingX = -1 * sin(facingAngle);
@@ -109,10 +104,20 @@ double VKDrone::aimAt(double x, double y) {
         angleToTarget *= -1.0;
     }
 
-    sideThrustFront = rotationPID.compute(0.0, angleToTarget);
-    sideThrustBack = -sideThrustFront;
-
     return angleToTarget;
+}
+
+void VKDrone::updateFacingAngle() {
+    // Angle from NORTH to "ang" attribute restricted to [-2PI, 2PI].
+    facingAngle = fmod(myShip->ang, 360) * (PI / 180.0);
+
+    // Ajust facingAngle to [-PI, PI] so that:
+    // North = 0; West = PI/2; South = +/-PI; East = -PI/2.
+    if (facingAngle > PI) {
+        facingAngle -= 2 * PI;
+    } else if (facingAngle < -PI) {
+        facingAngle += 2 * PI;
+    }
 }
 
 Point2D VKDrone::futurePosition(const GameObject *obj, double laserSpeed) {
@@ -159,6 +164,56 @@ void VKDrone::updateNearThreats(double nearDist) {
 
     gameState->Log("box size: " + to_string(nearThreats.size()));
 }
+
+void VKDrone::goTo(Point2D destiny, double angle) {
+    double deltaX = destiny.x - myShip->posx;
+    double deltaY = destiny.y - myShip->posy;
+    double distToDestiny = sqrt(pow(deltaX, 2) + pow(deltaY, 2));
+    double pidDist = movementPID.compute(0.0, -distToDestiny);
+
+    double Fx = pidDist * (deltaX / distToDestiny);
+    double Fy = pidDist * (deltaY / distToDestiny);
+    double Fr = angle;
+
+    double sinA = sin(facingAngle);
+    double cosA = cos(facingAngle);
+
+    double M = MAIN_THRUST_POWER;
+    double S = SIDE_THRUST_POWER;
+    double T = SIDE_THRUST_TORQUE;
+
+    double m; // Main thrust.
+    double f; // Front side thrust.
+    double b; // Back side thrust.
+
+    if (fabs(sinA) <= ZERO) {
+        m = Fy / (M * cosA);
+        f = 0.5 * ((Fx / (S * cosA)) - (Fr / T));
+        b = 0.5 * ((Fx / (S * cosA)) + (Fr / T));
+    } else if (fabs(cosA) <= ZERO) {
+        m = -Fx / (M * sinA);
+        f = 0.5 * ((Fy / (S * sinA)) - (Fr / T));
+        b = 0.5 * ((Fy / (S * sinA)) + (Fr / T));
+    } else {
+        m = (Fx - (cosA / sinA) * Fy) / (M * (-sinA - (cosA * cosA / sinA)));
+        b = 0.5 * (((Fy - m * M * cosA) / (S * sinA)) + Fr / T);
+        f = b - (Fr / T);
+    }
+
+    double rotationBoost = rotationPID.compute(0.0, angle);
+    f += rotationBoost;
+    b -= rotationBoost;
+
+    thrust = m;
+    sideThrustFront = f;
+    sideThrustBack = b;
+}
+
+/*
+Point2D VKDrone::evadePosition() {
+
+}
+*/
 
 
 /*******************************************************************************
