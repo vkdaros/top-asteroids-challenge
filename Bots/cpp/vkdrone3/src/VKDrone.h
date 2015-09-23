@@ -65,7 +65,7 @@ class VKDrone : public BotBase {
 
     // Indicates the power of next shoot. If charge == -1, then a new power
     // value is going to be given by rand().
-    int charge;
+    int nextCharge;
 
     // List of rocks ans lasers near the ship.
     vector<GameObject*> nearThreats;
@@ -76,6 +76,9 @@ class VKDrone : public BotBase {
     // Fill threats list with rocks and lasers inside a bound box centered in
     // the ship and with (2 * nearDist) side length.
     void updateNearThreats(double nearDist);
+
+    // Choose the laser power of next shot.
+    void updateNextCharge();
 
     void goTo(Point2D destiny, double angle);
 };

@@ -21,7 +21,7 @@ VKDrone::VKDrone() : rotationPID(KP_ROT, KI_ROT, KD_ROT, -1.0, 1.0, 0.05),
                                  MAIN_THRUST_POWER, 0.05){
     // Use current time as seed for rand.
     srand(time(0));
-    charge = 1;
+    nextCharge = 1;
 }
 
 VKDrone::~VKDrone() {
@@ -33,6 +33,8 @@ void VKDrone::Process() {
     // Fill threats list with rocks and lasers near the ship.
     updateNearThreats(NEAR_DIST);
 
+    updateNextCharge();
+
     GameObject *target = closestObject<Ship>(gameState->ships);
     if (target == NULL) {
         // Do nothing when there is no enemies left.
@@ -40,26 +42,16 @@ void VKDrone::Process() {
         return;
     }
 
-    if (charge == -1) {
-        // Get pseudo-random shot power;
-        charge = 1 + static_cast<int>(rand() % 2);
-    }
-
-    // If has charged a faster shot already, use it.
-    if (myShip->charge >= charge) {
-        charge = static_cast<int>(myShip->charge);
-    }
-
     // Rotate to face the target.
-    double laserSpeed = charge * LASER_BASE_SPEED;
+    double laserSpeed = nextCharge * LASER_BASE_SPEED;
     double angleToTarget = angleTo(futurePosition(target, laserSpeed));
     Point2D p = {15, 0};
     goTo(p, angleToTarget);
 
     // Shoot only when is aiming at right direction (angle < 1 degree).
-    if (myShip->charge >= charge && angleToTarget <= 0.01745) {
-        //shoot = charge;
-        charge = -1;
+    if (myShip->charge >= nextCharge && angleToTarget <= 0.01745) {
+        //shoot = nextCharge;
+        nextCharge = -1;
     } else {
         shoot = 0;
     }
@@ -163,6 +155,18 @@ void VKDrone::updateNearThreats(double nearDist) {
     }
 
     gameState->Log("box size: " + to_string(nearThreats.size()));
+}
+
+void VKDrone::updateNextCharge() {
+    if (nextCharge == -1) {
+        // Get pseudo-random shot power;
+        nextCharge = 1 + static_cast<int>(rand() % 2);
+    }
+
+    // If has charged a faster shot already, use it.
+    if (myShip->charge >= nextCharge) {
+        nextCharge = static_cast<int>(myShip->charge);
+    }
 }
 
 void VKDrone::goTo(Point2D destiny, double angle) {
