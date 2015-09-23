@@ -48,12 +48,16 @@ void VKDrone::Process() {
     Point2D p = {15, 0};
     goTo(p, angleToTarget);
 
-    // Shoot only when is aiming at right direction (angle < 1 degree).
-    if (myShip->charge >= nextCharge && angleToTarget <= 0.01745) {
+    // If all enemies has died, keep shooting.
+    shoot = 0;
+    if (target == NULL) {
+        shoot = 1;
+        nextCharge = 1;
+    } else if (myShip->charge >= nextCharge && angleToTarget <= 0.01745) {
+        // Shoot only when aiming at right direction (angle < 1 degree) and with
+        // correct laser power charged.
         //shoot = nextCharge;
         nextCharge = -1;
-    } else {
-        shoot = 0;
     }
 
     // velAngMaxThrust = 534.38
