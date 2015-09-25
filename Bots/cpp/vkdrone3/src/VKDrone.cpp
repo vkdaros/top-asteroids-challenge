@@ -139,8 +139,11 @@ void VKDrone::updateNearThreats(double nearDist) {
 	for (map<int, Laser*>::iterator itr = gameState->lasers.begin();
          itr != gameState->lasers.end(); itr++) {
 
+        // Do not consider my own lasers.
         Laser *obj = itr->second;
-        if (isInsideBox(obj, upperLeft, bottomRight)) {
+        if (obj->owner != myShip->uid &&
+            isInsideBox(obj, upperLeft, bottomRight)) {
+
             nearThreats.push_back(obj);
         }
     }
