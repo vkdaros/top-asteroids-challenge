@@ -13,7 +13,7 @@
 #define ZERO (0.0001)
 
 #define LASER_BASE_SPEED (25.0)
-#define NEAR_DIST (40)
+#define NEAR_DIST (30)
 #define SHIP_MASS (1)
 
 #define MAIN_THRUST_POWER  (30) // Newtons
@@ -26,9 +26,9 @@
 #define KD_ROT (0.25)
 
 // Movement PID gain constants.
-#define KP_MOVE (2.0)
+#define KP_MOVE (2.5)
 #define KI_MOVE (0.0)
-#define KD_MOVE (2.5)
+#define KD_MOVE (2.0)
 
 using std::map;
 using std::vector;

@@ -55,6 +55,8 @@ void VKDrone::Process() {
     if (target == NULL) {
         // If there is no rock, aim to the center of arena.
         angleToTarget = angleTo(0.0, 0.0);
+    } else if (evading) {
+        angleToTarget = angleTo(target);
     } else {
         double laserSpeed = nextCharge * LASER_BASE_SPEED;
         angleToTarget = angleTo(futurePosition(target, laserSpeed));
@@ -124,8 +126,8 @@ void VKDrone::updateFacingAngle() {
 }
 
 Point2D VKDrone::futurePosition(const GameObject *obj, double ls) {
-    double vx = obj->velx - myShip->velx;
-    double vy = obj->vely - myShip->vely;
+    double vx = obj->velx;
+    double vy = obj->vely;
     Point2D T = {obj->posx, obj->posy};
     Point2D N = {myShip->posx, myShip->posy};
 
@@ -133,34 +135,49 @@ Point2D VKDrone::futurePosition(const GameObject *obj, double ls) {
     double b = 2.0 * ((T.x - N.x)*vx + (T.y - N.y)*vy);
     double c = (T.x - N.x)*(T.x - N.x) + (T.y - N.y)*(T.y - N.y);
 
-    Point2D nextPos;
     double dt = 0;
 
-    double D = b*b - 4*a*c;
-    if (D < 0) {
-        // Collision impossible.
-        holdFire = true;
-
-        // Fake prediction.
-        dt = gameState->timeStep;
-    } else {
-        holdFire = false;
-
-        double rootD = sqrt(D) / (2 * a);
-        double dt1 = (-b + rootD) / (2 * a);
-        double dt2 = (-b - rootD) / (2 * a);
-
-        if (dt1 < 0.0 &&  dt2 < 0.0) {
+    if (fabs(a) <= ZERO) {
+        if (fabs(b) <= ZERO) {
+            dt = c;
+        } else {
+            dt = -c / b;
+        }
+        if (fabs(dt) <= ZERO) {
+            holdFire = true;
             // Fake prediction.
             dt = gameState->timeStep;
-        } else if (dt1 >= 0.0 &&  dt2 >= 0.0){
-            dt = min(dt1, dt2);
+        }
+    } else {
+        double D = b*b - 4*a*c;
+        if (D < 0) {
+            // Collision impossible.
+            holdFire = true;
+
+            // Fake prediction.
+            dt = gameState->timeStep;
         } else {
-            dt = max(dt1, dt2);
+            holdFire = false;
+
+            double rootD = sqrt(D);
+            double dt1 = (-b + rootD) / (2 * a);
+            double dt2 = (-b - rootD) / (2 * a);
+
+            if (dt1 < 0.0 &&  dt2 < 0.0) {
+                // Collision impossible.
+                holdFire = true;
+
+                // Fake prediction.
+                dt = gameState->timeStep;
+            } else if (dt1 >= 0.0 &&  dt2 >= 0.0){
+                dt = min(dt1, dt2);
+            } else {
+                dt = max(dt1, dt2);
+            }
         }
     }
-    nextPos.x = T.x + vx * dt;
-    nextPos.y = T.y + vy * dt;
+    //Point2D nextPos = {N.x + T.x + vx * dt, N.y + T.y + vy * dt};
+    Point2D nextPos = {T.x + vx * dt, T.y + vy * dt};
     //gameState->Log("nx: " + to_string(nextPos.x) +
     //               " ny: " + to_string(nextPos.y));
 
@@ -223,12 +240,14 @@ void VKDrone::goTo(Point2D destiny, double angle) {
 
     double Fx = 0.0;
     double Fy = 0.0;
-    double Fr = angle;
-    /*gameState->Log("x: " + to_string(myShip->posx) +
+    double Fr = 0.0;
+    /*
+    gameState->Log("x: " + to_string(myShip->posx) +
                    " y: " + to_string(myShip->posy));
     gameState->Log("X: " + to_string(destiny.x) +
                    " Y: " + to_string(destiny.y) +
-                   " dist: " + to_string(distToDestiny));*/
+                   " dist: " + to_string(distToDestiny));
+    */
 
     double sinA = sin(facingAngle);
     double cosA = cos(facingAngle);
@@ -242,12 +261,14 @@ void VKDrone::goTo(Point2D destiny, double angle) {
     double b; // Back side thrust.
 
     if (!evading) {
-        Fx = -SHIP_MASS * myShip->velx * S;
-        Fy = -SHIP_MASS * myShip->vely * S;
+        Fx = -SHIP_MASS * myShip->velx * 10;
+        Fy = -SHIP_MASS * myShip->vely * 10;
+        Fr = T * rotationPID.compute(0.0, -angle);
     } else if (fabs(distToDestiny) > ZERO) {
         double pidDist = movementPID.compute(0.0, -distToDestiny);
-        Fx = pidDist * (deltaX / distToDestiny);
-        Fy = pidDist * (deltaY / distToDestiny);
+        Fx = pidDist * M * (deltaX / distToDestiny);
+        Fy = pidDist * M * (deltaY / distToDestiny);
+        Fr = 0.0;
     }
 
     if (fabs(sinA) <= ZERO) {
@@ -264,9 +285,13 @@ void VKDrone::goTo(Point2D destiny, double angle) {
         f = b - (Fr / T);
     }
 
-    double rotationBoost = rotationPID.compute(0.0, angle);
-    f += rotationBoost;
-    b -= rotationBoost;
+/*
+    if (!evading) {
+        double rotationBoost = rotationPID.compute(0.0, angle);
+        f += rotationBoost;
+        b -= rotationBoost;
+    }
+*/
 
     double ajust = max(max(fabs(m), fabs(f)), fabs(b));
     if (ajust > 1.0) {
@@ -274,9 +299,12 @@ void VKDrone::goTo(Point2D destiny, double angle) {
         f /= ajust;
         b /= ajust;
     }
-    /*gameState->Log("Fx: " + to_string(Fx) + " Fy: " + to_string(Fy));
+    /*
+    gameState->Log("Fx: " + to_string(Fx) + " Fy: " + to_string(Fy) +
+                   " a: " + to_string(ajust));
     gameState->Log("m: " + to_string(m) + " f: " + to_string(f) +
-                   " b: " + to_string(b));*/
+                   " b: " + to_string(b));
+    */
 
     thrust = m;
     sideThrustFront = f;
@@ -313,8 +341,8 @@ Point2D VKDrone::evadePosition() {
         } else if (dist <= 1.3 * (myShip->radius + obj->radius)) {
             double u = collisionDistance(myNextPos, objPos, objNextPos);
             Point2D collisionPoint = {
-                objPos.x + u * (objNextPos.x - objPos.x),
-                objPos.y + u * (objNextPos.y - objPos.y)
+                objPos.x + (u + 0.02) * (objNextPos.x - objPos.x),
+                objPos.y + (u + 0.02) * (objNextPos.y - objPos.y)
             };
             threatsDirections.push_back(collisionPoint);
         }
