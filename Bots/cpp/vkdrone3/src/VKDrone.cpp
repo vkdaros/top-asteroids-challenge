@@ -10,6 +10,7 @@ using std::time;
 using std::rand;
 using std::srand;
 
+using std::min;
 using std::pow;
 using std::sqrt;
 using std::sin;
@@ -24,6 +25,7 @@ VKDrone::VKDrone() : rotationPID(KP_ROT, KI_ROT, KD_ROT, -1.0, 1.0, 0.05),
     nextCharge = 1;
     firstRun = true;
     evading = false;
+    holdFire = false;
 }
 
 VKDrone::~VKDrone() {
@@ -59,7 +61,8 @@ void VKDrone::Process() {
     if (target == NULL) {
         shoot = 1;
         nextCharge = 1;
-    } else if (myShip->charge >= nextCharge && angleToTarget <= 0.01745) {
+    } else if (!holdFire && myShip->charge >= nextCharge &&
+               angleToTarget <= 0.01745) {
         // Shoot only when aiming at right direction (angle < 1 degree) and with
         // correct laser power charged.
         shoot = nextCharge;
@@ -114,17 +117,28 @@ void VKDrone::updateFacingAngle() {
 }
 
 Point2D VKDrone::futurePosition(const GameObject *obj, double laserSpeed) {
-    // Distance to obj.
-    double dist = sqrt(pow(obj->posx - myShip->posx, 2) +
-                       pow(obj->posy - myShip->posy, 2));
+    // Laser speed along X and Y axes.
+    double lx = myShip->velx + laserSpeed * sin(facingAngle);
+    double ly = myShip->vely + laserSpeed * cos(facingAngle);
 
-    // Time needed to a laser beam travel all dist.
-    double dt = dist / laserSpeed;
+    // Time needed to obj and laser be in the same X and same Y.
+    double dtx = (obj->posx - myShip->posx) / (lx - obj->velx);
+    double dty = (obj->posy - myShip->posy) / (ly - obj->vely);
+//gameState->Log("dtx: " + to_string(dtx) + " dty: " + to_string(dty) + " ts: " + to_string(gameState->timeStep));
 
-    Point2D nextPos = {
-        obj->posx + obj->velx * dt,
-        obj->posy + obj->vely * dt
-    };
+    // A collision only happens if dtx and dty are the same.
+    Point2D nextPos;
+    if (fabs(dtx - dty) <= gameState->timeStep) {
+        nextPos.x = obj->posx + obj->velx * dtx;
+        nextPos.y = obj->posy + obj->vely * dty;
+        holdFire = false;
+    } else {
+        double dt = 3 * gameState->timeStep;
+        nextPos.x = obj->posx + obj->velx * dt;
+        nextPos.y = obj->posy + obj->vely * dt;
+        holdFire = true;
+    }
+
     return nextPos;
 }
 
@@ -141,10 +155,17 @@ void VKDrone::updateNearThreats(double nearDist) {
 
         // Do not consider my own lasers.
         Laser *obj = itr->second;
-        if (obj->owner != myShip->uid &&
-            isInsideBox(obj, upperLeft, bottomRight)) {
+        if (obj->owner != myShip->uid) {
+            // Squared speed.
+            double laserSpeed2 = pow(obj->velx, 2) + pow(obj->vely, 2);
 
-            nearThreats.push_back(obj);
+            // Fast laser beams and close ones need atention.
+            if (laserSpeed2 > pow(2 * LASER_BASE_SPEED, 2) ||
+                isInsideBox(obj, upperLeft, bottomRight)) {
+
+                nearThreats.push_back(obj);
+//if(laserSpeed2>pow(2*LASER_BASE_SPEED,2))gameState->Log("Fast comming");
+            }
         }
     }
 
@@ -178,12 +199,10 @@ void VKDrone::goTo(Point2D destiny, double angle) {
 
     double Fx = 0.0;
     double Fy = 0.0;
-    if (fabs(distToDestiny) > ZERO) {
-        double pidDist = movementPID.compute(0.0, -distToDestiny);
-        Fx = pidDist * (deltaX / distToDestiny);
-        Fy = pidDist * (deltaY / distToDestiny);
-    }
     double Fr = angle;
+/*gameState->Log("x: " + to_string(myShip->posx) + " y: " + to_string(myShip->posy));
+gameState->Log("X: " + to_string(destiny.x) + " Y: " + to_string(destiny.y) +
+               " dist: " + to_string(distToDestiny));*/
 
     double sinA = sin(facingAngle);
     double cosA = cos(facingAngle);
@@ -195,6 +214,15 @@ void VKDrone::goTo(Point2D destiny, double angle) {
     double m; // Main thrust.
     double f; // Front side thrust.
     double b; // Back side thrust.
+
+    if (!evading) {
+        Fx = -SHIP_MASS * myShip->velx * S;
+        Fy = -SHIP_MASS * myShip->vely * S;
+    } else if (fabs(distToDestiny) > ZERO) {
+        double pidDist = movementPID.compute(0.0, -distToDestiny);
+        Fx = pidDist * (deltaX / distToDestiny);
+        Fy = pidDist * (deltaY / distToDestiny);
+    }
 
     if (fabs(sinA) <= ZERO) {
         m = Fy / (M * cosA);
@@ -213,6 +241,8 @@ void VKDrone::goTo(Point2D destiny, double angle) {
     double rotationBoost = rotationPID.compute(0.0, angle);
     f += rotationBoost;
     b -= rotationBoost;
+/*gameState->Log("Fx: " + to_string(Fx) + " Fy: " + to_string(Fy));
+gameState->Log("m: " + to_string(m) + " f: " + to_string(f) + " b: " + to_string(b));*/
 
     thrust = m;
     sideThrustFront = f;
@@ -238,7 +268,6 @@ Point2D VKDrone::evadePosition() {
         };
 
         double dist = distPointToLine(myNextPos, objPos, objNextPos, gameState);
-        double minDist = myShip->radius + obj->radius;
         if (fabs(dist) <= ZERO) {
             Point2D v = {
                 objNextPos.y - myNextPos.y,
@@ -247,7 +276,7 @@ Point2D VKDrone::evadePosition() {
             v.x += myNextPos.x;
             v.y += myNextPos.y;
             threatsDirections.push_back(v);
-        } else if (dist <= minDist) {
+        } else if (dist <= myShip->radius + obj->radius) {
             double u = collisionDistance(myNextPos, objPos, objNextPos);
             Point2D collisionPoint = {
                 objPos.x + u * (objNextPos.x - objPos.x),
@@ -260,11 +289,13 @@ Point2D VKDrone::evadePosition() {
     if (threatsDirections.size() == 0) {
         if (evading) {
             destiny.x = myShip->posx;
-            destiny.y = myShip->posy;
+            destiny.x = myShip->posx;
         }
         evading = false;
+//gameState->Log("NOT evading");
     } else {
         evading = true;
+//gameState->Log("DO evading");
     }
 
     Point2D safeDirection = {destiny.x, destiny.y};

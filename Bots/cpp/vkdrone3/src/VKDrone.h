@@ -13,7 +13,8 @@
 #define ZERO (0.0001)
 
 #define LASER_BASE_SPEED (25.0)
-#define NEAR_DIST (30)
+#define NEAR_DIST (40)
+#define SHIP_MASS (1)
 
 #define MAIN_THRUST_POWER  (30) // Newtons
 #define SIDE_THRUST_POWER  (15)
@@ -87,6 +88,7 @@ class VKDrone : public BotBase {
     // List of rocks ans lasers near the ship.
     vector<GameObject*> nearThreats;
 
+    bool holdFire;
     bool firstRun;
     bool evading;
     Point2D destiny;
